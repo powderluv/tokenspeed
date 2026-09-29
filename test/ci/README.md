@@ -334,6 +334,36 @@ runner fleet must prevent two jobs from sharing one physical GPU.
 Harness, suite, correctness, timing, and local reproduction details are in the
 [kernel benchmark documentation](../../tokenspeed-kernel/benchmarks/README.md).
 
+## Qwen3.8 AgentX engine comparison
+
+The `sglang-qwen3.8-flash-next-nvfp4-agentx-p*.yaml` and
+`vllm-qwen3.8-flash-next-nvfp4-agentx-p*.yaml` tasks run the
+[AgentX Standard run](https://evalscope.readthedocs.io/en/latest/user_guides/stress_test/agentx.html#standard-run)
+at 1, 2, 4, 8, 16, and 32 active sessions. Each point starts a fresh server on
+one exclusive four-GPU GB300 node with TP4, EP4, MTP3, and shared MTP indices.
+SGLang uses NEXTN with three steps and four draft tokens; vLLM uses three
+speculative tokens. Both load the same pinned NVIDIA checkpoint revision.
+
+The tasks pin SGLang 0.5.20, vLLM 0.30.0, and EvalScope 1.12.0 in separate
+virtual environments. KV caches use BF16 because vLLM 0.30.0's QSA backend
+requires it; SSM state uses FP32. Both use an 8192-token prefill budget,
+262144-token context, 256 maximum running sequences, and 0.90 memory fraction.
+ModelOpt's mixed per-layer quantization is read from the checkpoint.
+
+Every point uses the verified ModelScope 256K mirror, seed 20260707, and a
+1800-second sending duration. Request timeout and completion grace retain
+AgentX defaults. `parallel` counts sessions, which can issue multiple requests.
+The harness checks the served context window before running and rejects
+incomplete, invalid, unverified, or error-bearing summaries. Server model info,
+benchmark commands, package versions, GPU details, summaries, and raw AIPerf
+files are retained under `.ci-artifacts/published/agentx`.
+
+Dispatch a branch containing these tasks with `Slurm Dispatch`: select
+`cluster=gb300`, `yaml=off`, `runners=slurm-gb300-4gpu`, `task_types=perf`,
+`trigger=slurm`, and `match=qwen3.8-flash-next-nvfp4-agentx`. This selects twelve
+independent Slurm jobs. The benchmark sending phases total 24 GPU-hours,
+excluding installation, loading, compilation, and completion grace.
+
 ## Slurm with Pyxis/Enroot
 
 `slurm_submit.py` submits an existing task YAML without copying its server,
