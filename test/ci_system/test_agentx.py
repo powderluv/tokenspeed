@@ -96,6 +96,19 @@ def test_sweep_configs_preserve_topology_and_speculation(engine):
         assert task["runner"]["labels"] == ["slurm-gb300-4gpu"]
         raw = yaml.safe_load(path.read_text())
         assert raw["slurm"] == {"nodes": 1, "gpus_per_node": 4}
+        # The Slurm base image has pip but no importable uv module. Bootstrap
+        # its executable before creating either isolated environment.
+        bootstrap = shlex.split(raw["install"][0])
+        assert bootstrap[:4] == ["python3", "-m", "pip", "install"]
+        bootstrap_dir = bootstrap[bootstrap.index("--target") + 1]
+        assert "uv==0.11.25" in bootstrap
+        for install in (raw["install"][1], raw["perf"]["install"][0]):
+            commands = install.split(" && ")
+            assert len(commands) == 2
+            assert all(
+                shlex.split(command)[0] == f"{bootstrap_dir}/bin/uv"
+                for command in commands
+            )
         command = shlex.split(raw["perf"]["command"])
         parallels.add(int(command[command.index("--parallel") + 1]))
         assert command[command.index("--engine") + 1] == engine

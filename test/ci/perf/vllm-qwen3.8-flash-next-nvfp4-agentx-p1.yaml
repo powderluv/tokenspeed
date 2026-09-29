@@ -14,9 +14,10 @@ env:
   CI: "true"
   MODEL_REVISION: fc694b54fb0174e0913e6adf86691ef85a4ead47
 install:
+  - python3 -m pip install --target /tmp/agentx-bootstrap 'uv==0.11.25'
   - >-
-    python3 -m uv venv --python 3.12 --seed --clear /tmp/agentx-engine &&
-    python3 -m uv pip install --python /tmp/agentx-engine/bin/python
+    /tmp/agentx-bootstrap/bin/uv venv --python 3.12 --seed --clear /tmp/agentx-engine &&
+    /tmp/agentx-bootstrap/bin/uv pip install --python /tmp/agentx-engine/bin/python
     'vllm==0.30.0'
 server:
   command: >-
@@ -46,8 +47,8 @@ server:
 perf:
   install:
     - >-
-      python3 -m uv venv --python 3.12 --seed --clear /tmp/evalscope-agentx &&
-      python3 -m uv pip install --python /tmp/evalscope-agentx/bin/python
+      /tmp/agentx-bootstrap/bin/uv venv --python 3.12 --seed --clear /tmp/evalscope-agentx &&
+      /tmp/agentx-bootstrap/bin/uv pip install --python /tmp/evalscope-agentx/bin/python
       'evalscope[agentx]==1.12.0'
     - >-
       mkdir -p .ci-artifacts/published/agentx/metadata &&

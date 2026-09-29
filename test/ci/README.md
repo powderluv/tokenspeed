@@ -345,7 +345,8 @@ SGLang uses NEXTN with three steps and four draft tokens; vLLM uses three
 speculative tokens. Both load the same pinned NVIDIA checkpoint revision.
 
 The tasks pin SGLang 0.5.20, vLLM 0.30.0, and EvalScope 1.12.0 in separate
-virtual environments. KV caches use BF16 because vLLM 0.30.0's QSA backend
+virtual environments. A job-local bootstrap installs uv 0.11.25 before creating
+these environments, so the runner image need not provide uv. KV caches use BF16 because vLLM 0.30.0's QSA backend
 requires it; SSM state uses FP32. Both use an 8192-token prefill budget,
 262144-token context, 256 maximum running sequences, and 0.90 memory fraction.
 ModelOpt's mixed per-layer quantization is read from the checkpoint.
