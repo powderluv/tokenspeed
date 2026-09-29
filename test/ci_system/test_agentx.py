@@ -109,6 +109,12 @@ def test_sweep_configs_preserve_topology_and_speculation(engine):
                 shlex.split(command)[0] == f"{bootstrap_dir}/bin/uv"
                 for command in commands
             )
+        assert shlex.split(raw["install"][2]) == [
+            "/tmp/agentx-engine/bin/python",
+            "test/ci_system/check_agentx_cuda.py",
+            "--num-gpus",
+            "4",
+        ]
         command = shlex.split(raw["perf"]["command"])
         parallels.add(int(command[command.index("--parallel") + 1]))
         assert command[command.index("--engine") + 1] == engine

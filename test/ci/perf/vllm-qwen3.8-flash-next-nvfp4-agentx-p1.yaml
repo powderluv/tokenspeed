@@ -19,6 +19,7 @@ install:
     /tmp/agentx-bootstrap/bin/uv venv --python 3.12 --seed --clear /tmp/agentx-engine &&
     /tmp/agentx-bootstrap/bin/uv pip install --python /tmp/agentx-engine/bin/python
     'vllm==0.30.0'
+  - /tmp/agentx-engine/bin/python test/ci_system/check_agentx_cuda.py --num-gpus 4
 server:
   command: >-
     /tmp/agentx-engine/bin/vllm serve nvidia/Qwen3.8-Flash-Next-NVFP4

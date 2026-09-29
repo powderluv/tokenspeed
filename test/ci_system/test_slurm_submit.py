@@ -548,6 +548,86 @@ def test_render_script_contains_cluster_requirements():
     subprocess.run(["bash", "-n"], input=script, text=True, check=True)
 
 
+def test_driver_mounts_include_runtime_and_linker_names(tmp_path, monkeypatch):
+    driver = tmp_path / "libcuda.so.580.0"
+    driver.touch()
+    ldconfig = tmp_path / "ldconfig"
+    ldconfig.write_text(
+        f"#!/bin/sh\nprintf '%s\\n' 'libcuda.so.1 (libc6) => {driver}'\n"
+    )
+    ldconfig.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
+    script = render_script(
+        Task("example.yaml", "example", "perf", "gb200-4gpu", 4),
+        Path("/shared/source.tar"),
+        Path("/shared/runs"),
+        Path("/shared/cache"),
+        "example/image",
+    )
+    mount_script = script.split(
+        "# The cluster Pyxis hooks omit driver libraries and tools.", 1
+    )[1].split("cudart=", 1)[0]
+    result = subprocess.run(
+        [
+            "bash",
+            "-eu",
+            "-c",
+            f'mounts=(); {mount_script}\nprintf "%s\\n" "${{mounts[@]}}"',
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    mounts = result.stdout.splitlines()
+    assert f"{driver}:{tmp_path}/libcuda.so.1:ro" in mounts
+    assert f"{driver}:/opt/tokenspeed-nvidia-driver/libcuda.so.1:ro" in mounts
+    assert f"{driver}:/opt/tokenspeed-nvidia-driver/libcuda.so:ro" in mounts
+
+
+@pytest.mark.parametrize("nodes", [1, 2])
+@pytest.mark.parametrize("inherited", [False, True])
+def test_bootstrap_exposes_driver_to_linker_and_triton(
+    tmp_path, monkeypatch, nodes, inherited
+):
+    script = render_script(
+        Task("example.yaml", "example", "perf", "gb200-4gpu", 4, nodes),
+        Path("/shared/source.tar"),
+        Path("/shared/runs"),
+        Path("/shared/cache"),
+        "example/image",
+    )
+    python = tmp_path / "python3"
+    python.write_text(
+        '#!/bin/bash\n[ "$1" != -c ] || exit 0\n'
+        'printf "%s\\n" "$LD_LIBRARY_PATH" "$LIBRARY_PATH" "$TRITON_LIBCUDA_PATH"\n'
+    )
+    python.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
+    variables = ("LD_LIBRARY_PATH", "LIBRARY_PATH", "TRITON_LIBCUDA_PATH")
+    for variable in variables:
+        if inherited:
+            monkeypatch.setenv(variable, f"/existing/{variable}")
+        else:
+            monkeypatch.delenv(variable, raising=False)
+    pattern = r"^(?:container|server|client)_command=\(\n(.*?)\n\)$"
+    commands = re.findall(pattern, script, re.M | re.S)
+    assert len(commands) == (1 if nodes == 1 else 2)
+    for command in commands:
+        result = subprocess.run(
+            shlex.split(command), check=True, capture_output=True, text=True
+        )
+        expected = [
+            "/opt/tokenspeed-nvidia-driver:/opt/tokenspeed-cuda-runtime",
+            "/opt/tokenspeed-nvidia-driver",
+            "/opt/tokenspeed-nvidia-driver",
+        ]
+        if inherited:
+            expected[0] += ":/existing/LD_LIBRARY_PATH"
+            expected[1] += ":/existing/LIBRARY_PATH"
+            expected[2] = "/existing/TRITON_LIBCUDA_PATH"
+        assert result.stdout.splitlines() == expected
+
+
 @pytest.mark.parametrize("nodes", [1, 2])
 @pytest.mark.parametrize(
     "yaml_status,failures,attempts,status",

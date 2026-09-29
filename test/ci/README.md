@@ -346,7 +346,10 @@ speculative tokens. Both load the same pinned NVIDIA checkpoint revision.
 
 The tasks pin SGLang 0.5.20, vLLM 0.30.0, and EvalScope 1.12.0 in separate
 virtual environments. A job-local bootstrap installs uv 0.11.25 before creating
-these environments, so the runner image need not provide uv. KV caches use BF16 because vLLM 0.30.0's QSA backend
+these environments, so the runner image need not provide uv. Before loading
+weights, each engine environment links and initializes the CUDA driver, then
+compiles and runs a small Triton kernel on all four GPUs. A failed check stops
+the install stage. KV caches use BF16 because vLLM 0.30.0's QSA backend
 requires it; SSM state uses FP32. Both use an 8192-token prefill budget,
 262144-token context, 256 maximum running sequences, and 0.90 memory fraction.
 ModelOpt's mixed per-layer quantization is read from the checkpoint.
@@ -410,6 +413,13 @@ NVIDIA release image
 different build. The container needs Python and pip. If PyYAML is absent, the
 job installs `PyYAML>=6,<7` into its job-local `/tmp` before starting the
 pipeline; images that already provide PyYAML do not perform this bootstrap.
+
+Driver libraries are also mounted under `/opt/tokenspeed-nvidia-driver`, with
+both `libcuda.so.1` for runtime loading and `libcuda.so` for JIT linking. The
+container bootstrap prepends this directory to `LD_LIBRARY_PATH` and
+`LIBRARY_PATH`, and sets `TRITON_LIBCUDA_PATH` unless explicitly supplied.
+This avoids relying on the container image's driver library cache and retains
+existing library search paths.
 
 The generated `sbatch` command uses `/tmp` as its working directory because the
 login-node checkout may not be mounted on compute nodes. Override it with

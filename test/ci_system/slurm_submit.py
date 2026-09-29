@@ -391,8 +391,13 @@ def render_script(
     if task.declared_runner is not None:
         pipeline.append(f"--runner-override={task.runner}")
     bootstrap = (
-        'export LD_LIBRARY_PATH="/opt/tokenspeed-cuda-runtime'
+        'export LD_LIBRARY_PATH="/opt/tokenspeed-nvidia-driver:'
+        "/opt/tokenspeed-cuda-runtime"
         '${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"; '
+        'export LIBRARY_PATH="/opt/tokenspeed-nvidia-driver'
+        '${LIBRARY_PATH:+:${LIBRARY_PATH}}"; '
+        'export TRITON_LIBCUDA_PATH="${TRITON_LIBCUDA_PATH:-'
+        '/opt/tokenspeed-nvidia-driver}"; '
         'if ! python3 -c "import yaml" >/dev/null 2>&1; then '
         "python3 -m pip install --no-cache-dir "
         '--target=/tmp/tokenspeed-ci-python "PyYAML>=6,<7"; '
@@ -499,6 +504,11 @@ for lib in libcuda.so.1 libnvidia-ml.so.1 libnvidia-ptxjitcompiler.so.1 libnvidi
     path="$(readlink -f "$link")"
     [ -n "$driver_dir" ] || driver_dir="$(dirname "$path")"
     mounts+=("$path:$driver_dir/$lib:ro")
+    mounts+=("$path:/opt/tokenspeed-nvidia-driver/$lib:ro")
+    # JIT extensions link with -lcuda, which needs the unversioned name.
+    if [ "$lib" = libcuda.so.1 ]; then
+      mounts+=("$path:/opt/tokenspeed-nvidia-driver/libcuda.so:ro")
+    fi
   fi
 done
 
