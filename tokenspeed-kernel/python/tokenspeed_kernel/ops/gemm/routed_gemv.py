@@ -941,8 +941,9 @@ def decode_gemv_routed(x: torch.Tensor, weight: torch.Tensor) -> bool:
     filtered out there, so this cannot select a kernel ROCm does not have.
     Which of the two a call lands on is decided by their declared traits.
 
-    CDNA4 is excluded: it has its own tuned M == 1 Triton GEMVs, which a
-    sweep has to rank against these before this may widen.
+    CDNA4 asks the registry only for ``M >= 2``, where the measured gfx950
+    Gluon decode GEMM declares its shapes; ``M == 1`` keeps CDNA4's own tuned
+    Triton GEMVs, which a sweep has to rank against these before it may widen.
 
     Args:
         x: ``[M, K]`` activation.
@@ -969,9 +970,12 @@ def decode_gemv_routed(x: torch.Tensor, weight: torch.Tensor) -> bool:
 
     from tokenspeed_kernel.platform import current_platform
 
+    platform = current_platform()
+    if platform.is_cdna4:
+        return m >= 2 and _select(m, n, k, True) is not torch_decode_gemv
     # Row-CTA's measured K floor; WMMA's stricter K % 128 == 0 is a trait on
     # its own spec.
-    if not current_platform().is_cdna5 or k < 256:
+    if not platform.is_cdna5 or k < 256:
         return False
     return _select(m, n, k, True) is not torch_decode_gemv
 

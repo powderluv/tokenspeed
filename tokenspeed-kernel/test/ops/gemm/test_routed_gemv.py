@@ -351,8 +351,8 @@ def test_route_predicate_admits_the_registered_arch_floor():
 
     x = torch.randn(1, 7168, device="cuda", dtype=torch.bfloat16)
     w = torch.randn(3584, 7168, device="cuda", dtype=torch.bfloat16)
-    # The predicate also consults the CDNA arm once the route misses.
-    nvidia = type("P", (), {"vendor": "nvidia", "is_cdna5": False})()
+    # The predicate also consults the CDNA arms once the route misses.
+    nvidia = type("P", (), {"vendor": "nvidia", "is_cdna4": False, "is_cdna5": False})()
     for capability, expected in (((10, 0), True), ((9, 0), False)):
         routed_gemv._is_routed_arch.cache_clear()
         with (
