@@ -1909,7 +1909,7 @@ def execute_task(
                 ready = dict(stage_payload["ready"])
                 server_command = stage_payload["command"]
                 if setup_mode == "slurm":
-                    ready["timeout"] = max(int(ready.get("timeout", 600)), 7200)
+                    ready["timeout"] = int(ready.get("timeout", 7200))
                     server_command = configure_slurm_server_command(
                         server_command, int(ready["timeout"])
                     )

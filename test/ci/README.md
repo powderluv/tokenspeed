@@ -356,10 +356,13 @@ metadata only. A local tokenizer is exported from the pinned model revision
 using the shared Hugging Face cache. The model's position limit is extended
 by 12 slots for MTP's overlap reservation, retaining a served 262144-token
 context. KVStore is disabled and the QSA logits budget is fixed at 2048 MiB.
-The readiness deadline is six hours because cold FlashInfer compilation and
-startup autotuning can exceed two hours. FlashInfer builds use the mounted
-`/home/runner/.cache` to survive job cleanup; tuning and benchmark settings
-remain enabled and unchanged.
+GB300 dependency setup installs and validates the matching FlashInfer JIT-cache
+package and architecture providers, including SM103a, in addition to the cubin
+package. Missing or mismatched providers fail installation before serving.
+Both readiness and engine startup are capped at 20 minutes; Slurm preserves
+the explicitly configured timeout. Any remaining custom FlashInfer
+builds use the mounted `/home/runner/.cache` to survive job cleanup; autotuning
+and benchmark settings remain enabled and unchanged.
 
 Dispatch all six cases from the benchmark branch, leaving `pr` blank so the
 workflow uses that exact commit:

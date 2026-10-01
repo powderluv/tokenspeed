@@ -1,3 +1,5 @@
+import os
+import subprocess
 from pathlib import Path
 
 import flashinfer_jit_cache_installer as installer
@@ -133,3 +135,45 @@ def test_jit_cache_ignores_inactive_dependency_markers(monkeypatch):
     monkeypatch.setattr(installer, "installed_distribution_version", lambda _: None)
 
     assert installer.jit_cache_dependencies_satisfied()
+
+
+@pytest.mark.parametrize("runner", ["gb200-4gpu", "gb300-4gpu", "slurm-gb300-4gpu"])
+def test_cuda_install_runs_jit_cache_installation_with_providers(runner):
+    source = Path(__file__).with_name("install_deps.sh").read_text()
+    function = (
+        "ensure_flashinfer_jit_cache() {"
+        + source.split("ensure_flashinfer_jit_cache() {", 1)[1].split("\n}", 1)[0]
+        + "\n}"
+    )
+    wheel = jit_cache_wheel_url("0.7.0", "130", platform_tag="manylinux_2_28_aarch64")
+    result = subprocess.run(
+        [
+            "bash",
+            "-c",
+            "set -euo pipefail\n"
+            'python3() { printf "%s\\n" "$FAKE_WHEEL"; }\n'
+            'pip_install_with_retry() { printf "%s\\n" "$@"; }\n'
+            + function
+            + "\nensure_flashinfer_jit_cache\n",
+        ],
+        env={
+            **os.environ,
+            "CI_RUNNER_LABEL": runner,
+            "SCRIPT_DIR": "/unused",
+            "CUDA_REQ": "/unused/cuda.txt",
+            "CUINDEX": "130",
+            "FAKE_WHEEL": wheel,
+        },
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout.splitlines() == [
+        "pip3",
+        "install",
+        "--break-system-packages",
+        "--force-reinstall",
+        "--index-url",
+        "https://flashinfer.ai/whl/cu130",
+        wheel,
+    ]

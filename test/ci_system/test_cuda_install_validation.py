@@ -26,8 +26,8 @@ from types import SimpleNamespace
 import pytest
 
 
-@pytest.fixture
-def installed_stack(monkeypatch, tmp_path):
+@pytest.fixture(params=["gb200-1gpu", "slurm-gb300-4gpu"])
+def installed_stack(monkeypatch, tmp_path, request):
     requirements = tmp_path / "cuda.txt"
     requirements.write_text(
         "torch==2.14.0\n" "flashinfer-python==0.7.0\n" "nvidia-cudnn-frontend==1.29.0\n"
@@ -45,6 +45,7 @@ def installed_stack(monkeypatch, tmp_path):
         "nvidia-cudnn-frontend": "1.29.0",
         "flashinfer-jit-cache": "0.7.0+cu130",
         "flashinfer-jit-cache-sm100a": "0.7.0+cu130",
+        "flashinfer-jit-cache-sm103a": "0.7.0+cu130",
     }
     torch = SimpleNamespace(
         __version__="2.14.0+cu130", version=SimpleNamespace(cuda="13.0")
@@ -60,9 +61,12 @@ def installed_stack(monkeypatch, tmp_path):
     monkeypatch.setattr(
         importlib.metadata,
         "requires",
-        lambda _: ["flashinfer-jit-cache-sm100a==0.7.0+cu130"],
+        lambda _: [
+            "flashinfer-jit-cache-sm100a==0.7.0+cu130",
+            "flashinfer-jit-cache-sm103a==0.7.0+cu130",
+        ],
     )
-    monkeypatch.setenv("CI_RUNNER_LABEL", "gb200-1gpu")
+    monkeypatch.setenv("CI_RUNNER_LABEL", request.param)
     monkeypatch.setattr(
         sys,
         "argv",
@@ -118,6 +122,7 @@ def test_cuda_install_rejects_wrong_cuda_runtime(installed_stack, cuda):
         "nvidia-cudnn-frontend",
         "flashinfer-jit-cache",
         "flashinfer-jit-cache-sm100a",
+        "flashinfer-jit-cache-sm103a",
     ],
 )
 def test_cuda_install_rejects_final_flashinfer_version_drift(installed_stack, name):
@@ -127,8 +132,9 @@ def test_cuda_install_rejects_final_flashinfer_version_drift(installed_stack, na
         exec(script, {})
 
 
-def test_cuda_install_rejects_missing_jit_provider(installed_stack):
+@pytest.mark.parametrize("provider", ["sm100a", "sm103a"])
+def test_cuda_install_rejects_missing_jit_provider(installed_stack, provider):
     script, _, versions = installed_stack
-    del versions["flashinfer-jit-cache-sm100a"]
+    del versions[f"flashinfer-jit-cache-{provider}"]
     with pytest.raises(SystemExit, match="JIT cache or providers do not match"):
         exec(script, {})

@@ -388,7 +388,10 @@ def test_multi_node_slurm_task_validation():
         validate_task(task, Path("task.yaml"))
 
 
-def test_slurm_server_modes_split_server_from_client(monkeypatch, tmp_path):
+@pytest.mark.parametrize("ready_timeout", [None, 1200])
+def test_slurm_server_modes_split_server_from_client(
+    monkeypatch, tmp_path, ready_timeout
+):
     task = {
         "name": "multi-node",
         "type": "eval",
@@ -403,6 +406,9 @@ def test_slurm_server_modes_split_server_from_client(monkeypatch, tmp_path):
             "command": "run eval",
         },
     }
+    expected_timeout = 7200 if ready_timeout is None else ready_timeout
+    if ready_timeout is not None:
+        task["server"]["ready"]["timeout"] = ready_timeout
 
     class FakeProcessGroupManager:
         def __init__(self):
@@ -443,7 +449,7 @@ def test_slurm_server_modes_split_server_from_client(monkeypatch, tmp_path):
     )
     assert serve_manager.commands == [
         "install project",
-        "ts serve --model example/model --engine-startup-timeout 7200",
+        f"ts serve --model example/model --engine-startup-timeout {expected_timeout}",
     ]
 
     ready_calls = []
@@ -483,7 +489,7 @@ def test_slurm_server_modes_split_server_from_client(monkeypatch, tmp_path):
         (
             {
                 "url": "http://127.0.0.1:8000/readiness",
-                "timeout": 7200,
+                "timeout": expected_timeout,
             },
             False,
         )
