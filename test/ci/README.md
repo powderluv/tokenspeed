@@ -368,6 +368,12 @@ gh workflow run slurm-dispatch.yml -R lightseekorg/tokenspeed \
   -f match=tokenspeed-qwen3.8-flash-next-nvfp4-agentx
 ```
 
+For a read-only snapshot while the dispatcher is still running, dispatch the
+same workflow with `cluster=gb300` and `inspect_commit=<full source SHA>`.
+This skips task submission, reads only matching AgentX jobs, and uploads their
+Slurm states, logs, and published benchmark outputs. It allocates no GPUs and
+does not alter or cancel jobs. Tokenizer copies are omitted from this snapshot.
+
 The runner verifies the model ID and effective context before benchmarking,
 then requires a completed, hash-verified, valid standard result. Each Slurm
 artifact retains the exact command, model metadata, package versions, GPU

@@ -3,6 +3,11 @@ name: Slurm Dispatch
 on:
   workflow_dispatch:
     inputs:
+      inspect_commit:
+        description: "Read-only AgentX status snapshot for a full commit SHA; blank submits tasks"
+        required: false
+        default: ""
+        type: string
       pr:
         description: "Optional pull request number or URL; blank runs the selected workflow ref"
         required: false
@@ -103,11 +108,39 @@ on:
           - slurm
 
 concurrency:
-  group: slurm-dispatch-${{ inputs.cluster }}-${{ github.ref }}-${{ inputs.pr || 'checkout' }}-${{ inputs.yaml }}-${{ inputs.runners }}-${{ inputs.match }}-${{ inputs.container_image || 'default-image' }}
+  group: slurm-dispatch-${{ inputs.cluster }}-${{ github.ref }}-${{ inputs.pr || 'checkout' }}-${{ inputs.yaml }}-${{ inputs.runners }}-${{ inputs.match }}-${{ inputs.container_image || 'default-image' }}-${{ inputs.inspect_commit }}
   cancel-in-progress: false
 
 jobs:
+  inspect:
+    if: inputs.inspect_commit != ''
+    runs-on: slurm-dispatch-gb300
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Collect existing AgentX jobs without allocating GPUs
+        env:
+          INSPECT_COMMIT: ${{ inputs.inspect_commit }}
+        run: |
+          set -euo pipefail
+          python3 test/ci_system/inspect_agentx.py \
+            --commit "$INSPECT_COMMIT" \
+            --artifact-root "/data/home/${USER}/tokenspeed-slurm" \
+            --output-dir "$RUNNER_TEMP/agentx-status"
+          cat "$RUNNER_TEMP/agentx-status/summary.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload AgentX status snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentx-status-${{ github.run_id }}
+          path: ${{ runner.temp }}/agentx-status
+          if-no-files-found: error
   dispatch:
+    if: inputs.inspect_commit == ''
     runs-on: ${{ inputs.cluster == 'gb300' && 'slurm-dispatch-gb300' || 'slurm-dispatch' }}
     timeout-minutes: 720
     permissions:
