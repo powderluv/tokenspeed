@@ -30,7 +30,7 @@ from pathlib import Path
 
 import pytest
 import run_agentx
-from pipeline import normalize_task
+from pipeline import configure_slurm_server_command, normalize_task
 from slurm_submit import parse_args, select_tasks
 
 MODEL = "nvidia/Qwen3.8-Flash-Next-NVFP4"
@@ -239,6 +239,15 @@ def test_slurm_selects_six_agentx_points_with_one_server_configuration(tmp_path)
     for config in configs:
         assert config["triggers"] == ["slurm"]
         assert config["env"]["TOKENSPEED_QWEN4_EXP_QSA_MAX_LOGITS_MB"] == "2048"
+        assert config["env"]["FLASHINFER_WORKSPACE_BASE"] == "/home/runner"
+        assert config["server"]["ready"]["timeout"] == 21600
+        configured_server = configure_slurm_server_command(
+            config["server"]["command"], config["server"]["ready"]["timeout"]
+        )
+        assert shlex.split(configured_server)[-2:] == [
+            "--engine-startup-timeout",
+            "21600",
+        ]
         server_args = shlex.split(config["server"]["command"])
         perf_args = shlex.split(config["perf"]["command"])
 

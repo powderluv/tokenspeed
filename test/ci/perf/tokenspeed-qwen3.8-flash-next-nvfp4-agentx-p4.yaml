@@ -12,6 +12,7 @@ slurm:
   gpus_per_node: 4
 env:
   CI: "true"
+  FLASHINFER_WORKSPACE_BASE: /home/runner
   MODEL_REVISION: fc694b54fb0174e0913e6adf86691ef85a4ead47
   TOKENSPEED_QWEN4_EXP_QSA_MAX_LOGITS_MB: "2048"
 install:
@@ -45,7 +46,7 @@ server:
     --port 8000
   ready:
     url: http://127.0.0.1:8000/readiness
-    timeout: 7200
+    timeout: 21600
     interval: 10
 perf:
   install:
