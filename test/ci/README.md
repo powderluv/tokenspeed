@@ -341,6 +341,38 @@ Harness, suite, correctness, timing, and local reproduction details are in the
 
 ## Slurm with Pyxis/Enroot
 
+### Qwen3.8 Flash Next AgentX standard benchmark
+
+The six `tokenspeed-qwen3.8-flash-next-nvfp4-agentx-p*.yaml` tasks each
+allocate one exclusive four-GPU GB300 node. They run parallel session counts
+1, 2, 4, 8, 16, and 32 independently, with TP4/EP4, three-step MTP and
+`index_share_for_mtp_iteration=true`. Prefill and decode graphs keep their
+default behavior. The model revision and EvalScope 1.12.0 are pinned.
+
+These tasks follow the [AgentX Standard run](https://evalscope.readthedocs.io/en/latest/user_guides/stress_test/agentx.html#standard-run):
+the verified ModelScope 256K mirror, default fixed seed, 1800-second duration,
+and default request timeout and grace period. The scenario adds deployment
+metadata only. A local tokenizer is exported from the pinned model revision
+using the shared Hugging Face cache. The model's position limit is extended
+by 12 slots for MTP's overlap reservation, retaining a served 262144-token
+context. KVStore is disabled and the QSA logits budget is fixed at 2048 MiB.
+
+Dispatch all six cases from the benchmark branch, leaving `pr` blank so the
+workflow uses that exact commit:
+
+```bash
+gh workflow run slurm-dispatch.yml -R lightseekorg/tokenspeed \
+  --ref codex/pr1783-agentx-gb300 \
+  -f cluster=gb300 -f yaml=off -f runners=slurm-gb300-4gpu \
+  -f task_types=perf -f trigger=slurm -f include_mmlu=false \
+  -f match=tokenspeed-qwen3.8-flash-next-nvfp4-agentx
+```
+
+The runner verifies the model ID and effective context before benchmarking,
+then requires a completed, hash-verified, valid standard result. Each Slurm
+artifact retains the exact command, model metadata, package versions, GPU
+inventory, AgentX summary, and raw AIPerf outputs, including failed results.
+
 `slurm_submit.py` submits an existing task YAML without copying its server,
 evaluation, performance, or threshold configuration into a second format. It
 targets one task at a time. By default the task uses one node, and the GPU count
